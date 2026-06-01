@@ -51,7 +51,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ПЛАНИРОВАНИЕ НАПОМИНАНИЯ
     # 2 недели в секундах = 14 дней * 24 часа * 60 минут * 60 секунд = 1209600 секунд.
     # Для теста вы можете поставить, например, 30 или 60 секунд, чтобы проверить работу сразу!
-    reminder_delay = 1209600 
+    reminder_delay = 60 
     
     # Добавляем задачу в очередь конкретно для этого пользователя
     context.job_queue.run_once(send_reminder, when=reminder_delay, chat_id=chat_id, name=f"reminder_{chat_id}")
