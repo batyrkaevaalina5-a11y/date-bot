@@ -1,8 +1,8 @@
-
 import os
 import json
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+# В импорты ниже добавлены ReplyKeyboardMarkup и KeyboardButton вместо старых Inline
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
  
 logging.basicConfig(level=logging.INFO)
@@ -33,12 +33,13 @@ IDEAS = {
     "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабляюще одновременно."),
 }
  
+# Измененная функция start — теперь кнопка создается внизу экрана (Reply)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получена команда /start от {update.effective_user.id}")
-    keyboard = [[InlineKeyboardButton("💫 Выбрать свидание", web_app=WebAppInfo(url=APP_URL))]]
+    keyboard = [[KeyboardButton("💫 Выбрать свидание", web_app=WebAppInfo(url=APP_URL))]]
     await update.message.reply_text(
         "Привет! 🥰\nВыбери идею свидания — она сразу узнает!",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
  
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
