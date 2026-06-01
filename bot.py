@@ -1,17 +1,34 @@
 import os
 import json
 import logging
-# В импорты ниже добавлены ReplyKeyboardMarkup и KeyboardButton вместо старых Inline
+import sqlite3
+from datetime import datetime
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
- 
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
- 
+
 TOKEN   = os.environ.get("BOT_TOKEN")
 YOUR_ID = int(os.environ.get("YOUR_ID"))
 APP_URL = os.environ.get("APP_URL")
- 
+
+DB_FILE = "users.db"
+
+# Функция для настройки базы данных
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    # Создаем таблицу, если её еще нет
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            start_date TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
 IDEAS = {
     "1":  ("🕯️", "Ужин при свечах дома",        "Накрой красивый стол, зажги свечи и приготовь её любимое блюдо."),
     "2":  ("🌅", "Встретить рассвет вместе",     "Уедьте заранее и встретьте рассвет с кофе в руках. Незабываемо."),
@@ -30,22 +47,40 @@ IDEAS = {
     "15": ("☕", "Кофейный тур по городу",       "3–4 кофейни за день, пробуя фирменные напитки в каждой."),
     "16": ("🫧", "Массаж с маслами 1 час",       "Ароматные масла, свечи, приятная музыка. Только вы двое."),
     "17": ("🛁", "Ванна с пеной и вином",        "Свечи, пена, бокал вина — полный релакс и уют."),
-    "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабляюще одновременно."),
+    "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабряюще одновременно."),
 }
- 
-# Измененная функция start — теперь кнопка создается внизу экрана (Reply)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f"Получена команда /start от {update.effective_user.id}")
+    chat_id = update.effective_user.id
+    logger.info(f"Получена команда /start от {chat_id}")
+    
+    # СОХРАНЕНИЕ В ТАБЛИЦУ
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Записываем ID или обновляем дату, если пользователь уже заходил
+        cursor.execute('''
+            INSERT INTO users (user_id, start_date) 
+            VALUES (?, ?) 
+            ON CONFLICT(user_id) DO UPDATE SET start_date=excluded.start_date
+        ''', (chat_id, current_time))
+        conn.commit()
+        conn.close()
+        logger.info(f"Пользователь {chat_id} сохранен в базу данных.")
+    except Exception as e:
+        logger.error(f"Ошибка сохранения в БД: {e}")
+
     keyboard = [[KeyboardButton("💫 Выбрать свидание", web_app=WebAppInfo(url=APP_URL))]]
     await update.message.reply_text(
         "Привет! 🥰\nВыбери идею свидания — она сразу узнает!",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
- 
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text or ""
     logger.info(f"Получено сообщение: {text} от {update.effective_user.id}")
- 
+
     if text.startswith("CHOICE:"):
         idea_id = text.replace("CHOICE:", "").strip()
         idea = IDEAS.get(idea_id)
@@ -58,9 +93,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             logger.info(f"Уведомление отправлено на ID: {YOUR_ID}")
         return
- 
+
     await update.message.reply_text("Нажми кнопку ниже чтобы выбрать свидание! 💫")
- 
+
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получены данные из Mini App, отправляю на ID: {YOUR_ID}")
     try:
@@ -75,14 +110,16 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"Ошибка: {e}")
- 
+
 def main():
+    init_db() # Инициализируем таблицу при старте
     app = ApplicationBuilder().token(TOKEN).build()
+    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     logger.info("Бот запущен!")
     app.run_polling(drop_pending_updates=True)
- 
+
 if __name__ == "__main__":
     main()
