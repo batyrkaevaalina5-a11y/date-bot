@@ -2,7 +2,8 @@ import os
 import json
 import logging
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+# В импорт ниже добавлен JobQueue в самый конец
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, JobQueue
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ IDEAS = {
     "15": ("☕", "Кофейный тур по городу",       "3–4 кофейни за день, пробуя фирменные напитки в каждой."),
     "16": ("🫧", "Массаж с маслами 1 час",       "Ароматные масла, свечи, приятная музыка. Только вы двое."),
     "17": ("🛁", "Ванна с пеной и вином",        "Свечи, пена, бокал вина — полный релакс и уют."),
-    "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабряюще одновременно."),
+    "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабляюще одновременно."),
 }
 
 # Функция-напоминание, которая сработает через 2 недели
@@ -48,12 +49,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
     logger.info(f"Получена команда /start от {chat_id}")
     
-    # ПЛАНИРОВАНИЕ НАПОМИНАНИЯ
-    # 2 недели в секундах = 14 дней * 24 часа * 60 минут * 60 секунд = 1209600 секунд.
-    # Для теста вы можете поставить, например, 30 или 60 секунд, чтобы проверить работу сразу!
+    # 2 недели в секундах = 1209600. 
+    # Сюда можно временно поставить 30, чтобы протестировать это прямо сейчас!
     reminder_delay = 1209600 
     
-    # Добавляем задачу в очередь конкретно для этого пользователя
+    # Планируем задачу в очереди для конкретного пользователя
     context.job_queue.run_once(send_reminder, when=reminder_delay, chat_id=chat_id, name=f"reminder_{chat_id}")
     logger.info(f"Напоминание для {chat_id} запланировано через {reminder_delay} секунд.")
 
@@ -98,7 +98,9 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка: {e}")
 
 def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    # Здесь мы добавили .job_queue(JobQueue()), чтобы исправить ошибку AttributeError
+    app = ApplicationBuilder().token(TOKEN).job_queue(JobQueue()).build()
+    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
