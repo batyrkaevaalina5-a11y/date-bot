@@ -19,7 +19,7 @@ DB_FILE = "users.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Создаем таблицу, если её еще нет
+    # Создаем таблицу для хранения ID пользователей и даты их старта
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -47,19 +47,19 @@ IDEAS = {
     "15": ("☕", "Кофейный тур по городу",       "3–4 кофейни за день, пробуя фирменные напитки в каждой."),
     "16": ("🫧", "Массаж с маслами 1 час",       "Ароматные масла, свечи, приятная музыка. Только вы двое."),
     "17": ("🛁", "Ванна с пеной и вином",        "Свечи, пена, бокал вина — полный релакс и уют."),
-    "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабряюще одновременно."),
+    "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабляюще одновременно."),
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_user.id
     logger.info(f"Получена команда /start от {chat_id}")
     
-    # СОХРАНЕНИЕ В ТАБЛИЦУ
+    # Автоматическое сохранение пользователя в базу данных SQLite
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Записываем ID или обновляем дату, если пользователь уже заходил
+        # Записываем ID. Если пользователь уже есть, просто обновляем ему дату
         cursor.execute('''
             INSERT INTO users (user_id, start_date) 
             VALUES (?, ?) 
@@ -67,7 +67,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ''', (chat_id, current_time))
         conn.commit()
         conn.close()
-        logger.info(f"Пользователь {chat_id} сохранен в базу данных.")
+        logger.info(f"Пользователь {chat_id} успешно сохранен в базу данных.")
     except Exception as e:
         logger.error(f"Ошибка сохранения в БД: {e}")
 
@@ -111,15 +111,51 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Ошибка: {e}")
 
+# Функция секретной рассылки (доступна только вам)
+async def send_reminders_to_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверка: если команду пишет не админ, бот на неё просто не ответит
+    if update.effective_user.id != YOUR_ID:
+        return
+
+    await update.message.reply_text("⏳ Запускаю проверку базы данных и рассылку напоминаний...")
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        # Достаем все ID из сохраненной таблички
+        cursor.execute('SELECT user_id FROM users')
+        rows = cursor.fetchall()
+        conn.close()
+        
+        count = 0
+        for row in rows:
+            target_id = row[0]
+            try:
+                # Отправляем напоминание каждому пользователю из базы данных
+                await context.bot.send_message(
+                    chat_id=target_id,
+                    text="Привет! 🥰\nНапоминаем, что самое время устроить вашей половинке незабываемое свидание! Нажми кнопку ниже, чтобы выбрать новую идею. 💫"
+                )
+                count += 1
+            except Exception as send_error:
+                logger.error(f"Не удалось отправить пользователю {target_id}: {send_error}")
+                
+        await update.message.reply_text(f"✅ Напоминания успешно отправлены {count} пользователям!")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка при работе с БД: {e}")
+
 def main():
-    init_db() # Инициализируем таблицу при старте
+    init_db() # Запуск создания базы данных при включении бота
     app = ApplicationBuilder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
+    # Регистрация секретной команды рассылки
+    app.add_handler(CommandHandler("send_reminders", send_reminders_to_all))
+    
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     logger.info("Бот запущен!")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    main()
