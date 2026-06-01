@@ -24,7 +24,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Нажми кнопку ниже чтобы выбрать свидание!")
 
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info("Получены данные из Mini App")
+    logger.info(f"Получены данные из Mini App, отправляю на ID: {YOUR_ID}")
     try:
         data = json.loads(update.message.web_app_data.data)
         emoji = data.get("emoji", "💌")
