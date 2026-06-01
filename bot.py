@@ -1,17 +1,17 @@
 import os
 import json
 import logging
+# В импорты ниже добавлены ReplyKeyboardMarkup и KeyboardButton вместо старых Inline
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
-# В импорт ниже добавлен JobQueue в самый конец
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, JobQueue
-
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+ 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+ 
 TOKEN   = os.environ.get("BOT_TOKEN")
 YOUR_ID = int(os.environ.get("YOUR_ID"))
 APP_URL = os.environ.get("APP_URL")
-
+ 
 IDEAS = {
     "1":  ("🕯️", "Ужин при свечах дома",        "Накрой красивый стол, зажги свечи и приготовь её любимое блюдо."),
     "2":  ("🌅", "Встретить рассвет вместе",     "Уедьте заранее и встретьте рассвет с кофе в руках. Незабываемо."),
@@ -32,41 +32,20 @@ IDEAS = {
     "17": ("🛁", "Ванна с пеной и вином",        "Свечи, пена, бокал вина — полный релакс и уют."),
     "18": ("🌿", "СПА-вечер дома",               "Маски, пилинги, массаж ног — смешно и расслабляюще одновременно."),
 }
-
-# Функция-напоминание, которая сработает через 2 недели
-async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
-    job = context.job
-    logger.info(f"Отправка запланированного напоминания для пользователя {job.chat_id}")
-    try:
-        await context.bot.send_message(
-            chat_id=job.chat_id,
-            text="Привет! 🥰\nПрошло уже две недели с момента запуска бота. Самое время устроить вашей половинке незабываемое свидание! Нажми кнопку ниже, чтобы выбрать новую идею. 💫"
-        )
-    except Exception as e:
-        logger.error(f"Не удалось отправить напоминание пользователю {job.chat_id}: {e}")
-
+ 
+# Измененная функция start — теперь кнопка создается внизу экрана (Reply)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_user.id
-    logger.info(f"Получена команда /start от {chat_id}")
-    
-    # 2 недели в секундах = 1209600. 
-    # Сюда можно временно поставить 30, чтобы протестировать это прямо сейчас!
-    reminder_delay = 1209600 
-    
-    # Планируем задачу в очереди для конкретного пользователя
-    context.job_queue.run_once(send_reminder, when=reminder_delay, chat_id=chat_id, name=f"reminder_{chat_id}")
-    logger.info(f"Напоминание для {chat_id} запланировано через {reminder_delay} секунд.")
-
+    logger.info(f"Получена команда /start от {update.effective_user.id}")
     keyboard = [[KeyboardButton("💫 Выбрать свидание", web_app=WebAppInfo(url=APP_URL))]]
     await update.message.reply_text(
         "Привет! 🥰\nВыбери идею свидания — она сразу узнает!",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
-
+ 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text or ""
     logger.info(f"Получено сообщение: {text} от {update.effective_user.id}")
-
+ 
     if text.startswith("CHOICE:"):
         idea_id = text.replace("CHOICE:", "").strip()
         idea = IDEAS.get(idea_id)
@@ -79,9 +58,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             logger.info(f"Уведомление отправлено на ID: {YOUR_ID}")
         return
-
+ 
     await update.message.reply_text("Нажми кнопку ниже чтобы выбрать свидание! 💫")
-
+ 
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Получены данные из Mini App, отправляю на ID: {YOUR_ID}")
     try:
@@ -96,16 +75,14 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"Ошибка: {e}")
-
+ 
 def main():
-    # Здесь мы добавили .job_queue(JobQueue()), чтобы исправить ошибку AttributeError
-    app = ApplicationBuilder().token(TOKEN).job_queue(JobQueue()).build()
-    
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     logger.info("Бот запущен!")
     app.run_polling(drop_pending_updates=True)
-
+ 
 if __name__ == "__main__":
     main()
