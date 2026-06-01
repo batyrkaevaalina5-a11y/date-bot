@@ -1,3 +1,1 @@
-"python-telegram-bot[job-queue]"
-pytz
-apscheduler
+python-telegram-bot==20.7
